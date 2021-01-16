@@ -8,7 +8,7 @@ const BEVY_TEXTURE_ID: u64 = 0;
 #[wasm_bindgen(start)]
 pub fn main() {
     App::build()
-        .add_resource(ClearColor(Color::rgb(1.0, 1.0, 1.0)))
+        .add_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
         .add_plugins(DefaultPlugins)
         .add_plugin(WebGL2Plugin)
         .add_plugin(EguiPlugin)
