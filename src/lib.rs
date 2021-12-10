@@ -1,10 +1,14 @@
-use bevy::prelude::*;
+use bevy::{prelude::*};
 use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
 use bevy_webgl2::WebGL2Plugin;
 use wasm_bindgen::prelude::*;
 
 const BEVY_TEXTURE_ID: u64 = 0;
 
+/// This example demonstrates the following functionality and use-cases of bevy_egui:
+/// - rendering loaded assets;
+/// - toggling hidpi scaling (by pressing '/' button);
+/// - configuring egui contexts during the startup.
 #[wasm_bindgen(start)]
 pub fn main() {
     App::build()
@@ -13,9 +17,9 @@ pub fn main() {
         .add_plugin(WebGL2Plugin)
         .add_plugin(EguiPlugin)
         .add_startup_system(load_assets.system())
+        .add_startup_system(configure_visuals.system())
         .add_system(update_ui_scale_factor.system())
         .add_system(ui_example.system())
-        .init_resource::<UiState>()
         .run();
 }
 
@@ -27,59 +31,82 @@ struct UiState {
     inverted: bool,
 }
 
-fn load_assets(mut egui_context: ResMut<EguiContext>, asset_server: Res<AssetServer>) {
-    let texture_handle = asset_server.load("icon.png");
+fn load_assets(mut egui_context: ResMut<EguiContext>, assets: Res<AssetServer>) {
+    let texture_handle = assets.load("icon.png");
     egui_context.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
 }
 
-fn update_ui_scale_factor(mut egui_settings: ResMut<EguiSettings>, windows: Res<Windows>) {
-    if let Some(window) = windows.get_primary() {
-        egui_settings.scale_factor = 1.0 / window.scale_factor();
+fn configure_visuals(egui_ctx: ResMut<EguiContext>) {
+    egui_ctx.ctx().set_visuals(egui::Visuals {
+        window_corner_radius: 0.0,
+        ..Default::default()
+    });
+}
+
+fn update_ui_scale_factor(
+    keyboard_input: Res<Input<KeyCode>>,
+    mut toggle_scale_factor: Local<Option<bool>>,
+    mut egui_settings: ResMut<EguiSettings>,
+    windows: Res<Windows>,
+) {
+    if keyboard_input.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
+        *toggle_scale_factor = Some(!toggle_scale_factor.unwrap_or(true));
+
+        if let Some(window) = windows.get_primary() {
+            let scale_factor = if toggle_scale_factor.unwrap() {
+                1.0
+            } else {
+                1.0 / window.scale_factor()
+            };
+            egui_settings.scale_factor = scale_factor;
+        }
     }
 }
 
 fn ui_example(
-    mut egui_context: ResMut<EguiContext>,
+    mut egui_ctx: ResMut<EguiContext>,
     mut ui_state: ResMut<UiState>,
-    asset_server: Res<AssetServer>,
+    assets: Res<AssetServer>,
 ) {
-    let ctx = &mut egui_context.ctx();
-
     let mut load = false;
     let mut remove = false;
     let mut invert = false;
 
-    egui::SidePanel::left("side_panel", 200.0).show(ctx, |ui| {
-        ui.heading("Side Panel");
+    egui::SidePanel::left("side_panel")
+        .default_width(200.0)
+        .show(egui_ctx.ctx(), |ui| {
+            ui.heading("Side Panel");
 
-        ui.horizontal(|ui| {
-            ui.label("Write something: ");
-            ui.text_edit_singleline(&mut ui_state.label);
+            ui.horizontal(|ui| {
+                ui.label("Write something: ");
+                ui.text_edit_singleline(&mut ui_state.label);
+            });
+
+            ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));
+            if ui.button("Increment").clicked() {
+                ui_state.value += 1.0;
+            }
+
+            ui.allocate_space(egui::Vec2::new(1.0, 100.0));
+            ui.horizontal(|ui| {
+                load = ui.button("Load").clicked();
+                invert = ui.button("Invert").clicked();
+                remove = ui.button("Remove").clicked();
+            });
+
+            ui.add(egui::widgets::Image::new(
+                egui::TextureId::User(BEVY_TEXTURE_ID),
+                [256.0, 256.0],
+            ));
+
+            ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
+                ui.add(
+                    egui::Hyperlink::new("https://github.com/emilk/egui/").text("powered by egui"),
+                );
+            });
         });
 
-        ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));
-        if ui.button("Increment").clicked() {
-            ui_state.value += 1.0;
-        }
-
-        ui.allocate_space(egui::Vec2::new(1.0, 100.0));
-        ui.horizontal(|ui| {
-            load = ui.button("Load").clicked();
-            invert = ui.button("Invert").clicked();
-            remove = ui.button("Remove").clicked();
-        });
-
-        ui.add(egui::widgets::Image::new(
-            egui::TextureId::User(BEVY_TEXTURE_ID),
-            [256.0, 256.0],
-        ));
-
-        ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-            ui.add(egui::Hyperlink::new("https://github.com/emilk/egui/").text("powered by egui"));
-        });
-    });
-
-    egui::TopPanel::top("top_panel").show(ctx, |ui| {
+    egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx(), |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             egui::menu::menu(ui, "File", |ui| {
@@ -90,11 +117,11 @@ fn ui_example(
         });
     });
 
-    egui::CentralPanel::default().show(ctx, |ui| {
+    egui::CentralPanel::default().show(egui_ctx.ctx(), |ui| {
         ui.heading("Egui Template");
         ui.hyperlink("https://github.com/emilk/egui_template");
         ui.add(egui::github_link_file_line!(
-            "https://github.com/emilk/egui_template/blob/master/",
+            "https://github.com/mvlabat/bevy_egui/blob/main/",
             "Direct link to source code."
         ));
         egui::warn_if_debug_build(ui);
@@ -112,26 +139,28 @@ fn ui_example(
         });
     });
 
-    egui::Window::new("Window").scroll(true).show(ctx, |ui| {
-        ui.label("Windows can be moved by dragging them.");
-        ui.label("They are automatically sized based on contents.");
-        ui.label("You can turn on resizing and scrolling if you like.");
-        ui.label("You would normally chose either panels OR windows.");
-    });
+    egui::Window::new("Window")
+        .vscroll(true)
+        .show(egui_ctx.ctx(), |ui| {
+            ui.label("Windows can be moved by dragging them.");
+            ui.label("They are automatically sized based on contents.");
+            ui.label("You can turn on resizing and scrolling if you like.");
+            ui.label("You would normally chose either panels OR windows.");
+        });
 
     if invert {
         ui_state.inverted = !ui_state.inverted;
     }
     if load || invert {
         let texture_handle = if ui_state.inverted {
-            asset_server.load("icon_inverted.png")
+            assets.load("icon_inverted.png")
         } else {
-            asset_server.load("icon.png")
+            assets.load("icon.png")
         };
-        egui_context.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
+        egui_ctx.set_egui_texture(BEVY_TEXTURE_ID, texture_handle);
     }
     if remove {
-        egui_context.remove_egui_texture(BEVY_TEXTURE_ID);
+        egui_ctx.remove_egui_texture(BEVY_TEXTURE_ID);
     }
 }
 
@@ -161,9 +190,9 @@ impl Painting {
             .response
     }
 
-    pub fn ui_content(&mut self, ui: &mut egui::Ui) -> egui::Response {
+    pub fn ui_content(&mut self, ui: &mut egui::Ui) {
         let (response, painter) =
-            ui.allocate_painter(ui.available_size_before_wrap_finite(), egui::Sense::drag());
+            ui.allocate_painter(ui.available_size_before_wrap(), egui::Sense::drag());
         let rect = response.rect;
 
         if self.lines.is_empty() {
@@ -172,8 +201,8 @@ impl Painting {
 
         let current_line = self.lines.last_mut().unwrap();
 
-        if let Some(mouse_pos) = response.interact_pointer_pos() {
-            let canvas_pos = mouse_pos - rect.min;
+        if let Some(pointer_pos) = response.interact_pointer_pos() {
+            let canvas_pos = pointer_pos - rect.min;
             if current_line.last() != Some(&canvas_pos) {
                 current_line.push(canvas_pos);
             }
@@ -187,7 +216,5 @@ impl Painting {
                 painter.add(egui::Shape::line(points, self.stroke));
             }
         }
-
-        response
     }
 }
