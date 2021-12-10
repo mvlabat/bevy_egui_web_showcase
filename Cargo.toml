@@ -19,3 +19,7 @@ wasm-bindgen = "0.2.69"
 [patch.crates-io]
 #bevy_egui = { path = "../bevy_egui" }
 #bevy_webgl2 = { git = "https://github.com/mvlabat/bevy_webgl2.git", branch = "fix-scissor-test" }
+
+# TODO: remove after wasm-bindgen 0.2.70 upgrade.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = ["-Os", "--enable-mutable-globals"]
