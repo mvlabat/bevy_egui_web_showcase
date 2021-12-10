@@ -22,4 +22,4 @@ wasm-bindgen = "0.2.69"
 
 # TODO: remove after wasm-bindgen 0.2.70 upgrade.
 [package.metadata.wasm-pack.profile.release]
-wasm-opt = ["-Os", "--enable-mutable-globals"]
+wasm-opt = false
