@@ -13,6 +13,7 @@ const BEVY_TEXTURE_ID: u64 = 0;
 pub fn main() {
     App::build()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
+        .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
         .add_plugin(WebGL2Plugin)
         .add_plugin(EguiPlugin)
