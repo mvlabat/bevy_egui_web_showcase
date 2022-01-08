@@ -1,6 +1,5 @@
-use bevy::{prelude::*};
+use bevy::prelude::*;
 use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
-use bevy_webgl2::WebGL2Plugin;
 use wasm_bindgen::prelude::*;
 
 const BEVY_TEXTURE_ID: u64 = 0;
@@ -11,16 +10,16 @@ const BEVY_TEXTURE_ID: u64 = 0;
 /// - configuring egui contexts during the startup.
 #[wasm_bindgen(start)]
 pub fn main() {
-    App::build()
+    App::new()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
+        .insert_resource(Msaa { samples: 4 })
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
-        .add_plugin(WebGL2Plugin)
         .add_plugin(EguiPlugin)
-        .add_startup_system(load_assets.system())
-        .add_startup_system(configure_visuals.system())
-        .add_system(update_ui_scale_factor.system())
-        .add_system(ui_example.system())
+        .add_startup_system(load_assets)
+        .add_startup_system(configure_visuals)
+        .add_system(update_ui_scale_factor)
+        .add_system(ui_example)
         .run();
 }
 
@@ -101,16 +100,17 @@ fn ui_example(
             ));
 
             ui.with_layout(egui::Layout::bottom_up(egui::Align::Center), |ui| {
-                ui.add(
-                    egui::Hyperlink::new("https://github.com/emilk/egui/").text("powered by egui"),
-                );
+                ui.add(egui::Hyperlink::from_label_and_url(
+                    "powered by egui",
+                    "https://github.com/emilk/egui/",
+                ));
             });
         });
 
     egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx(), |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
-            egui::menu::menu(ui, "File", |ui| {
+            egui::menu::menu_button(ui, "File", |ui| {
                 if ui.button("Quit").clicked() {
                     std::process::exit(0);
                 }

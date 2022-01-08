@@ -22,11 +22,6 @@ jobs:
             cache-${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.toml') }}
             cache-${{ runner.os }}-cargo
 
-      - uses: actions-rs/cargo@v1
-        with:
-          command: update
-          args: -p tracing-wasm --precise 0.2.0
-
       - name: Build
         run: wasm-pack build --target web --release
 
