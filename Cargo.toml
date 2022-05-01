@@ -18,6 +18,3 @@ wasm-bindgen = "0.2.80"
 
 [patch.crates-io]
 #bevy_egui = { path = "../bevy_egui" }
-
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
