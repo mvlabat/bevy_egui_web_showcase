@@ -3,7 +3,7 @@
   "collaborators": [
     "mvlabat <mvlabat@gmail.com>"
   ],
-  "version": "0.3.0",
+  "version": "0.4.0",
   "files": [
     "bevy_egui_web_showcase_bg.wasm",
     "bevy_egui_web_showcase.js",
