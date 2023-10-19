@@ -1,5 +1,5 @@
-use bevy::prelude::*;
-use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings};
+use bevy::{prelude::*, window::PrimaryWindow};
+use bevy_egui::{egui, EguiContext, EguiPlugin, EguiSettings, EguiUserTextures};
 use wasm_bindgen::prelude::*;
 
 struct Images {
@@ -25,17 +25,16 @@ impl FromWorld for Images {
 pub fn main() {
     App::new()
         .insert_resource(ClearColor(Color::rgb(0.0, 0.0, 0.0)))
-        .insert_resource(Msaa { samples: 4 })
         .init_resource::<UiState>()
         .add_plugins(DefaultPlugins)
-        .add_plugin(EguiPlugin)
-        .add_startup_system(configure_visuals)
-        .add_startup_system(configure_ui_state)
-        .add_system(update_ui_scale_factor)
-        .add_system(ui_example)
+        .add_plugins(EguiPlugin)
+        .add_systems(Startup, configure_visuals)
+        .add_systems(Startup, configure_ui_state)
+        .add_systems(Update, update_ui_scale_factor)
+        .add_systems(Update, ui_example)
         .run();
 }
-#[derive(Default)]
+#[derive(Default, Resource)]
 struct UiState {
     label: String,
     value: f32,
@@ -45,8 +44,8 @@ struct UiState {
     is_window_open: bool,
 }
 
-fn configure_visuals(mut egui_ctx: ResMut<EguiContext>) {
-    egui_ctx.ctx_mut().set_visuals(egui::Visuals {
+fn configure_visuals(mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>) {
+    egui_ctx.single_mut().get_mut().set_visuals(egui::Visuals {
         window_rounding: 0.0.into(),
         ..Default::default()
     });
@@ -60,24 +59,25 @@ fn update_ui_scale_factor(
     keyboard_input: Res<Input<KeyCode>>,
     mut toggle_scale_factor: Local<Option<bool>>,
     mut egui_settings: ResMut<EguiSettings>,
-    windows: Res<Windows>,
+    window: Query<&Window, With<PrimaryWindow>>,
 ) {
+    let Ok(window) = window.get_single() else {
+        return;
+    };
     if keyboard_input.just_pressed(KeyCode::Slash) || toggle_scale_factor.is_none() {
         *toggle_scale_factor = Some(!toggle_scale_factor.unwrap_or(true));
-
-        if let Some(window) = windows.get_primary() {
-            let scale_factor = if toggle_scale_factor.unwrap() {
-                1.0
-            } else {
-                1.0 / window.scale_factor()
-            };
-            egui_settings.scale_factor = scale_factor;
-        }
+        let scale_factor = if toggle_scale_factor.unwrap() {
+            1.0
+        } else {
+            1.0 / window.scale_factor()
+        };
+        egui_settings.scale_factor = scale_factor;
     }
 }
 
 fn ui_example(
-    mut egui_ctx: ResMut<EguiContext>,
+    mut egui_user_textures: ResMut<EguiUserTextures>,
+    mut egui_ctx: Query<&mut EguiContext, With<PrimaryWindow>>,
     mut ui_state: ResMut<UiState>,
     // You are not required to store Egui texture ids in systems. We store this one here just to
     // demonstrate that rendering by using a texture id of a removed image is handled without
@@ -91,9 +91,11 @@ fn ui_example(
     let egui_texture_handle = ui_state
         .egui_texture_handle
         .get_or_insert_with(|| {
-            egui_ctx
-                .ctx_mut()
-                .load_texture("example-image", egui::ColorImage::example())
+            egui_ctx.single_mut().get_mut().load_texture(
+                "example-image",
+                egui::ColorImage::example(),
+                Default::default(),
+            )
         })
         .clone();
 
@@ -103,12 +105,12 @@ fn ui_example(
 
     if !*is_initialized {
         *is_initialized = true;
-        *rendered_texture_id = egui_ctx.add_image(images.bevy_icon.clone_weak());
+        *rendered_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
     }
 
     egui::SidePanel::left("side_panel")
         .default_width(200.0)
-        .show(egui_ctx.ctx_mut(), |ui| {
+        .show(egui_ctx.single_mut().get_mut(), |ui| {
             ui.heading("Side Panel");
 
             ui.horizontal(|ui| {
@@ -116,10 +118,10 @@ fn ui_example(
                 ui.text_edit_singleline(&mut ui_state.label);
             });
 
-            ui.add(egui::widgets::Image::new(
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
                 egui_texture_handle.id(),
                 egui_texture_handle.size_vec2(),
-            ));
+            )));
 
             ui.add(egui::Slider::new(&mut ui_state.value, 0.0..=10.0).text("value"));
             if ui.button("Increment").clicked() {
@@ -133,10 +135,10 @@ fn ui_example(
                 remove = ui.button("Remove").clicked();
             });
 
-            ui.add(egui::widgets::Image::new(
+            ui.add(egui::widgets::Image::new(egui::load::SizedTexture::new(
                 *rendered_texture_id,
                 [256.0, 256.0],
-            ));
+            )));
 
             ui.allocate_space(egui::Vec2::new(1.0, 10.0));
             ui.checkbox(&mut ui_state.is_window_open, "Window Is Open");
@@ -149,7 +151,7 @@ fn ui_example(
             });
         });
 
-    egui::TopBottomPanel::top("top_panel").show(egui_ctx.ctx_mut(), |ui| {
+    egui::TopBottomPanel::top("top_panel").show(egui_ctx.single_mut().get_mut(), |ui| {
         // The top panel is often a good place for a menu bar:
         egui::menu::bar(ui, |ui| {
             egui::menu::menu_button(ui, "File", |ui| {
@@ -160,7 +162,7 @@ fn ui_example(
         });
     });
 
-    egui::CentralPanel::default().show(egui_ctx.ctx_mut(), |ui| {
+    egui::CentralPanel::default().show(egui_ctx.single_mut().get_mut(), |ui| {
         ui.heading("Egui Template");
         ui.hyperlink("https://github.com/emilk/egui_template");
         ui.add(egui::github_link_file_line!(
@@ -185,7 +187,7 @@ fn ui_example(
     egui::Window::new("Window")
         .vscroll(true)
         .open(&mut ui_state.is_window_open)
-        .show(egui_ctx.ctx_mut(), |ui| {
+        .show(egui_ctx.single_mut().get_mut(), |ui| {
             ui.label("Windows can be moved by dragging them.");
             ui.label("They are automatically sized based on contents.");
             ui.label("You can turn on resizing and scrolling if you like.");
@@ -198,14 +200,15 @@ fn ui_example(
     if load || invert {
         // If an image is already added to the context, it'll return an existing texture id.
         if ui_state.inverted {
-            *rendered_texture_id = egui_ctx.add_image(images.bevy_icon_inverted.clone_weak());
+            *rendered_texture_id =
+                egui_user_textures.add_image(images.bevy_icon_inverted.clone_weak());
         } else {
-            *rendered_texture_id = egui_ctx.add_image(images.bevy_icon.clone_weak());
+            *rendered_texture_id = egui_user_textures.add_image(images.bevy_icon.clone_weak());
         };
     }
     if remove {
-        egui_ctx.remove_image(&images.bevy_icon);
-        egui_ctx.remove_image(&images.bevy_icon_inverted);
+        egui_user_textures.remove_image(&images.bevy_icon);
+        egui_user_textures.remove_image(&images.bevy_icon_inverted);
     }
 }
 
@@ -232,7 +235,7 @@ impl Painting {
                 self.lines.clear();
             }
         })
-            .response
+        .response
     }
 
     pub fn ui_content(&mut self, ui: &mut egui::Ui) {
